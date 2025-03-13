@@ -9,7 +9,7 @@ setup(
     install_requires=[
         "torch>=1.9.0",
         "transformers>=4.10.0",
-        "numpy>=1.21.0",
+        "numpy==2.0.1",
         "scikit-learn>=0.24.0",
         "scipy>=1.7.0",
         "sentence_transformers",
