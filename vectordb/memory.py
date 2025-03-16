@@ -213,13 +213,13 @@ class Memory:
         """
         Load vectors from .fvecs, .bvecs, or .ivecs files.
 
-        :param vec_files: a list of strings containing the paths to the vector files.
+        :param vec_files: a path to the .fvecs, .bvecs, or .ivecs file.
         """ 
         reader = Reader(vec_file)
         data = reader.data
 
         for idx, data_vector in enumerate(data):
-            self.metadata_memory.append({"index": f"vector {idx}"})
+            self.metadata_memory.append({})
             meta_index_start = self.metadata_index_counter
             self.metadata_index_counter += 1
 
@@ -229,3 +229,24 @@ class Memory:
                 "metadata_index": meta_index_start,
                 "text_index": self.text_index_counter
             })
+
+    def search_vector(self, query_vector: List[float], top_k: int):
+        """
+        Search for the most similar vectors to the given query vector.
+
+        :param query_vector: a list of floats containing the query vector.
+        :param top_k: an integer representing the number of most similar vectors to return.
+        :return: a list of dictionaries containing the top_k most similar vectors and their associated metadata.
+        """
+        embeddings = [entry["embedding"] for entry in self.memory]
+        indices = self.vector_search.search_vectors(query_vector, embeddings, top_k)
+        results = [
+            {
+                "chunk": self.memory[i[0]]["chunk"],
+                "metadata": self.metadata_memory[self.memory[i[0]]["metadata_index"]],
+                "distance": i[1],
+            }
+            for i in indices
+        ]
+        return results
+

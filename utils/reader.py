@@ -45,4 +45,4 @@ class Reader:
     @staticmethod
     def _ivecs_read(filename: str) -> np.ndarray:
         """Reads .ivecs file and returns a numpy array"""
-        return Reader._fvecs_read(filename).view(np.float32)
+        return Reader._fvecs_read(filename).view(np.int32)

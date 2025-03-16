@@ -1,4 +1,4 @@
-from vectordb import Memory, Storage
+from vectordb import Memory
 from time import time
 
 memory = Memory()
@@ -23,11 +23,10 @@ memory.save(
 query = (
     "I lost credentials how to recover"
 )
-storage_obj = Storage()
-storage_obj.save_to_disk(memory.memory)
 
 start_time = time()
 results = memory.search(query, top_n=4, unique=True)
 end_time = time()
 print("Search took {:.4f} ms".format((end_time - start_time) * 1000))
 print(results)
+memory.dump()
