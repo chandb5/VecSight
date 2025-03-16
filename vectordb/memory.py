@@ -13,6 +13,7 @@ from .embedding import BaseEmbedder, Embedder
 from .vector_search import VectorSearch
 from .storage import Storage
 
+from utils import Reader
 
 class Memory:
     """
@@ -25,6 +26,7 @@ class Memory:
         memory_file: str = None,
         chunking_strategy: dict = None,
         embeddings: Union[BaseEmbedder, str] = "normal",
+        load_vec_files: bool = False,
     ):
         """
         Initializes the Memory class.
@@ -43,19 +45,27 @@ class Memory:
             self.memory = [] if len(load) != 1 else load[0]["memory"]
             self.metadata_memory = [] if len(load) != 1 else load[0]["metadata"]
 
-        if chunking_strategy is None:
-            chunking_strategy = {"mode": "sliding_window"}
-        self.chunker = Chunker(chunking_strategy)
+        if not load_vec_files:
+            if chunking_strategy is None:
+                chunking_strategy = {"mode": "sliding_window"}
+            self.chunker = Chunker(chunking_strategy)
 
-        self.metadata_index_counter = 0
-        self.text_index_counter = 0
+            self.metadata_index_counter = 0
+            self.text_index_counter = 0
 
-        if isinstance(embeddings, str):
-            self.embedder = Embedder(embeddings)
-        elif isinstance(embeddings, BaseEmbedder):
-            self.embedder = embeddings
+            if isinstance(embeddings, str):
+                self.embedder = Embedder(embeddings)
+            elif isinstance(embeddings, BaseEmbedder):
+                self.embedder = embeddings
+            else:
+                raise TypeError("Embeddings must be an Embedder instance or string")
         else:
-            raise TypeError("Embeddings must be an Embedder instance or string")
+            # if loading vec files we do not need chunker and embedder
+            # since vectors are already embedded
+            self.chunker = None
+            self.embedder = None
+            self.metadata_index_counter = 0
+            self.text_index_counter = 0
 
         self.vector_search = VectorSearch()
 
@@ -206,3 +216,31 @@ class Memory:
 
         print("Total entries: ", len(self.memory))
         print("Total metadata: ", len(self.metadata_memory))
+
+    def load_vector_files(self, vec_file: str):
+        """
+        Load vectors from .fvecs, .bvecs, or .ivecs files.
+
+        :param vec_files: a list of strings containing the paths to the vector files.
+        """ 
+        reader = Reader(vec_file)
+        data = reader.data
+        
+        metadata = [{}]
+
+        for meta in metadata:
+            self.metadata_memory.append(meta)
+
+        meta_index_start = (
+            self.metadata_index_counter
+        )
+        self.metadata_index_counter += len(
+            metadata
+        )
+        self.memory.append({
+            "embedding": data[0],
+            "chunk": "vector 1",
+            "metadata_index": meta_index_start,
+            "text_index": self.text_index_counter
+        })
+        # self.save(data, load_vec_files=True)
