@@ -45,27 +45,19 @@ class Memory:
             self.memory = [] if len(load) != 1 else load[0]["memory"]
             self.metadata_memory = [] if len(load) != 1 else load[0]["metadata"]
 
-        if not load_vec_files:
-            if chunking_strategy is None:
-                chunking_strategy = {"mode": "sliding_window"}
-            self.chunker = Chunker(chunking_strategy)
+        if chunking_strategy is None:
+            chunking_strategy = {"mode": "sliding_window"}
+        self.chunker = Chunker(chunking_strategy)
 
-            self.metadata_index_counter = 0
-            self.text_index_counter = 0
+        self.metadata_index_counter = 0
+        self.text_index_counter = 0
 
-            if isinstance(embeddings, str):
-                self.embedder = Embedder(embeddings)
-            elif isinstance(embeddings, BaseEmbedder):
-                self.embedder = embeddings
-            else:
-                raise TypeError("Embeddings must be an Embedder instance or string")
+        if isinstance(embeddings, str):
+            self.embedder = Embedder(embeddings)
+        elif isinstance(embeddings, BaseEmbedder):
+            self.embedder = embeddings
         else:
-            # if loading vec files we do not need chunker and embedder
-            # since vectors are already embedded
-            self.chunker = None
-            self.embedder = None
-            self.metadata_index_counter = 0
-            self.text_index_counter = 0
+            raise TypeError("Embeddings must be an Embedder instance or string")
 
         self.vector_search = VectorSearch()
 
@@ -225,22 +217,15 @@ class Memory:
         """ 
         reader = Reader(vec_file)
         data = reader.data
-        
-        metadata = [{}]
 
-        for meta in metadata:
-            self.metadata_memory.append(meta)
+        for idx, data_vector in enumerate(data):
+            self.metadata_memory.append({"index": f"vector {idx}"})
+            meta_index_start = self.metadata_index_counter
+            self.metadata_index_counter += 1
 
-        meta_index_start = (
-            self.metadata_index_counter
-        )
-        self.metadata_index_counter += len(
-            metadata
-        )
-        self.memory.append({
-            "embedding": data[0],
-            "chunk": "vector 1",
-            "metadata_index": meta_index_start,
-            "text_index": self.text_index_counter
-        })
-        # self.save(data, load_vec_files=True)
+            self.memory.append({
+                "embedding": data_vector,
+                "chunk": f"vector {idx}",
+                "metadata_index": meta_index_start,
+                "text_index": self.text_index_counter
+            })
