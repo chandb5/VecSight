@@ -21,12 +21,13 @@ memory.save(
 )
 
 query = (
-    "I lost credentials how to recover"
+    "help me troubleshoot"
 )
 
 start_time = time()
 results = memory.search(query, top_n=4, unique=True)
 end_time = time()
 print("Search took {:.4f} ms".format((end_time - start_time) * 1000))
-print(results)
-memory.dump()
+
+for result in results:
+    print(result)
