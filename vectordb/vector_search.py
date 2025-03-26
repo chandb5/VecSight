@@ -105,6 +105,7 @@ class VectorSearch:
         embeddings: List[List[float]],
         top_n: int,
         batch_results: str = "flatten",
+        preference: str = "mrpt",
     ) -> List[Tuple[int, float]]:
         """
         Searches for the most similar vectors to the query_embedding in the given embeddings.
@@ -122,7 +123,7 @@ class VectorSearch:
         if isinstance(embeddings, list):
             embeddings = np.array(embeddings).astype(np.float32)
 
-        if len(embeddings) < 3000 or not MRPT_LOADED:
+        if preference == "faiss" or not MRPT_LOADED:
             call_search = VectorSearch.run_faiss
         else:
             call_search = VectorSearch.run_mrpt

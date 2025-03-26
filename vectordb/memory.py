@@ -230,7 +230,7 @@ class Memory:
                 "text_index": self.text_index_counter
             })
 
-    def search_vector(self, query_vector: List[float], top_k: int):
+    def search_vector(self, query_vector: List[float], top_k: int, preference: str = "mrpt") -> List[Dict[str, Any]]:
         """
         Search for the most similar vectors to the given query vector.
 
@@ -239,7 +239,7 @@ class Memory:
         :return: a list of dictionaries containing the top_k most similar vectors and their associated metadata.
         """
         embeddings = [entry["embedding"] for entry in self.memory]
-        indices = self.vector_search.search_vectors(query_vector, embeddings, top_k)
+        indices = self.vector_search.search_vectors(query_vector, embeddings, top_k, preference)
         results = [
             {
                 "chunk": self.memory[i[0]]["chunk"],
