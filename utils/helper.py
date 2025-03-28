@@ -1,5 +1,5 @@
 from hnsw import HNSW
-from typing import List
+from typing import List, Dict
 
 import csv
 import matplotlib.pyplot as plt
@@ -125,3 +125,16 @@ def write_csv(data, filename, fieldnames=None):
         writer.writerows(data)
 
     print(f"Data written to {filename}")
+
+def summarize_performance(performance: Dict[int, Dict[str, float]]):
+    avg_accuracy = 0
+    avg_time = 0
+    for idx, res in performance.items():
+        avg_accuracy += res["accuracy"]
+        avg_time += res["time"]
+    avg_accuracy /= len(performance)
+    avg_time /= len(performance)
+
+    print(f"Average Accuracy: {avg_accuracy}")
+    print(f"Average Time: {avg_time} ms")
+    return avg_accuracy, avg_time

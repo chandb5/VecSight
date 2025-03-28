@@ -209,7 +209,7 @@ class Memory:
         print("Total entries: ", len(self.memory))
         print("Total metadata: ", len(self.metadata_memory))
 
-    def load_vector_files(self, vec_file: str):
+    def load_vector_files(self, vec_file: str, number_of_vectors: int = None):
         """
         Load vectors from .fvecs, .bvecs, or .ivecs files.
 
@@ -217,6 +217,7 @@ class Memory:
         """ 
         reader = Reader(vec_file)
         data = reader.data
+        print(f"Loading {len(data)} vectors from {vec_file}")
 
         for idx, data_vector in enumerate(data):
             self.metadata_memory.append({})
@@ -229,6 +230,11 @@ class Memory:
                 "metadata_index": meta_index_start,
                 "text_index": self.text_index_counter
             })
+            if len(self.memory) % 10000 == 0:
+                print(f"Loaded {len(self.memory)} vectors")
+            if number_of_vectors is not None and len(self.memory) >= number_of_vectors:
+                break
+        print(f"Loaded {len(self.memory)} vectors exiting")
 
     def search_vector(self, query_vector: List[float], top_k: int, preference: str = "mrpt") -> List[Dict[str, Any]]:
         """
