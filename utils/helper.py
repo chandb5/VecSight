@@ -1,5 +1,5 @@
 from hnsw import HNSW
-from typing import List, Dict
+from typing import Dict
 
 import csv
 import matplotlib.pyplot as plt
@@ -98,12 +98,6 @@ def plot_hnsw_layers(layered_graph, output_dir=".", xlim=25, ylim=25):
         filepath = os.path.join(output_dir, f"layer{layer}.png")
         plt.savefig(filepath)
         plt.close()
-
-
-def get_all_distance_linear(query: List[float], hnsw_obj: HNSW, level: int):
-    for node in hnsw_obj.layered_graph[level]:
-        print(f"Distance between query and node {node.vector}: {node.distance(query)}")
-
 
 def write_csv(data, filename, fieldnames=None):
     if isinstance(data, dict):
