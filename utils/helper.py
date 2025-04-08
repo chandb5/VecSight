@@ -1,8 +1,12 @@
 from hnsw import HNSW
 from typing import Dict
+from collections import defaultdict
 
 import csv
+import datetime
 import matplotlib.pyplot as plt
+import numpy as np
+import re
 import os
 import string
 
@@ -103,12 +107,11 @@ def write_csv(data, filename, fieldnames=None):
     if isinstance(data, dict):
         data = [{"query_id": k, **v} for k, v in data.items()]
 
-    # Determine fieldnames if not provided
     if fieldnames is None:
-        # Use keys from the first dictionary
         fieldnames = list(data[0].keys())
 
-    # Write to CSV
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+
     with open(filename, "w", newline="") as csvfile:
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
@@ -132,3 +135,62 @@ def summarize_performance(performance: Dict[int, Dict[str, float]]):
     print(f"Average Accuracy: {avg_accuracy}")
     print(f"Average Time: {avg_time} ms")
     return avg_accuracy, avg_time
+
+def get_count_of_vectors(dataset_base_path: str) -> int:
+    """
+    Get the count of vectors in the dataset.
+    :param dataset_base_path: Path to the dataset directory.
+    :param query_file: Name of the query file.
+    :return: Count of vectors in the dataset.
+    """
+    filename = dataset_base_path.split("/")[-1] + "_base.fvecs"
+    vector_file = os.path.join(dataset_base_path, filename)
+    fv = np.fromfile(vector_file, dtype=np.float32)
+    dim = fv.view(np.int32)[0]
+    return fv.size // (1 + dim) 
+
+def performance_plotter(output_dir, save_dir="plots"):
+    """
+    Generate simple performance comparison plots.
+    
+    Args:
+        output_dir: Directory containing algorithm result folders
+        save_dir: Directory to save generated plots
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    data = defaultdict(dict)
+
+    for algo in os.listdir(output_dir):
+        path = os.path.join(output_dir, algo)
+        if not os.path.isdir(path):
+            continue
+        for file in os.listdir(path):
+            if not file.endswith('_size_scaling_metrics.csv'):
+                continue
+            match = re.match(r'(.+)_size_scaling_metrics\.csv', file)
+            if not match:
+                continue
+            dataset = match.group(1)
+            x, y = [], []
+            with open(os.path.join(path, file)) as f:
+                for row in csv.DictReader(f):
+                    x.append(int(row['vector_count']))
+                    y.append(float(row['query_time_ms']))
+            data[dataset][algo] = (x, y)
+
+    for dataset, algos in data.items():
+        plt.figure(figsize=(10, 6))
+        for algo, (x, y) in algos.items():
+            xy = sorted(zip(x, y))
+            x_sorted, y_sorted = zip(*xy)
+            plt.plot(x_sorted, y_sorted, 'o-', label=algo.upper())
+        plt.title(f"{dataset.upper()} - Query Time vs Vector Count")
+        plt.xlabel("Vector Count")
+        plt.ylabel("Query Time (ms)")
+        plt.yscale("log", base=2)
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(f"{save_dir}/{dataset}_query_time_{timestamp}.png", dpi=300)
+        plt.close()

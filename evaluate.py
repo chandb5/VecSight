@@ -1,14 +1,17 @@
 import time
 import threading
 import copy
+import math
 import argparse
 from typing import Dict, List, Optional, Tuple
 
 from utils import Reader
 from vectordb import Memory
 from hnsw import HNSW, Node
-from utils.helper import write_csv, summarize_performance
+from utils.helper import get_count_of_vectors, write_csv, summarize_performance, performance_plotter
 
+OUTPUT_DIR = "./output"
+PLOT_DIR = "./plots"
 
 def load_data(
     base_path: str, size: Optional[int] = None
@@ -254,7 +257,7 @@ def finetune_hnsw_parameters(
                 best_result = copy.deepcopy(result)
                 max_accuracy = avg_accuracy
 
-        output_path = f"./final_output/finetune/hnsw_performance_M{m}_ef{ef}.csv"
+        output_path = f"{OUTPUT_DIR}/finetune/hnsw_performance_M{m}_ef{ef}.csv"
         write_csv(best_result, output_path)
         print(f"  Best result saved to {output_path}")
 
@@ -262,95 +265,28 @@ def finetune_hnsw_parameters(
         for ef in value_ef:
             evaluate_parameter_pair(m, ef)
 
-
-def process_chunk(
-    algorithm: str,
-    dataset_base_path: str,
-    chunk_index: int,
-    chunk_size: int,
-    require_ground_truth: bool,
-    hnsw_obj: Optional[HNSW] = None,
-) -> Tuple[Dict[int, Dict[str, float]], Optional[HNSW]]:
-    """
-    Process a single chunk of data for evaluation.
-
-    Args:
-        algorithm (str): Algorithm to evaluate
-        dataset_base_path (str): Path to dataset
-        dataset (str): Dataset name
-        chunk_index (int): Index of current chunk
-        chunk_size (int): Size of each chunk
-        require_ground_truth (bool): Whether ground truths are required
-        hnsw_obj (Optional[HNSW]): Existing HNSW object for continued building
-
-    Returns:
-        Tuple of results dictionary and updated HNSW object (if applicable)
-    """
-    chunk_num = chunk_index + 1
-    print(
-        f"\nProcessing chunk {chunk_num} [{chunk_index * chunk_size}:{(chunk_index + 1) * chunk_size}]"
-    )
-
-    start_idx = chunk_index * chunk_size
-    end_idx = (chunk_index + 1) * chunk_size
-
-    memory, query_reader, ground_truths = load_data(dataset_base_path, size=end_idx)
-
-    results = None
-
-    if algorithm == "hnsw":
-        hnsw_obj = build_hnsw_index(
-            memory,
-            M=12,
-            ef_construction=250,
-            hnsw_obj=hnsw_obj,
-            start=start_idx,
-            end=end_idx,
-        )
-
-        results = evaluate_hnsw_performance(
-            hnsw_obj,
-            query_reader,
-            ground_truths,
-            require_ground_truths=require_ground_truth,
-            k=100,
-        )
-    else:  # mrpt or faiss
-        results = evaluate_existing_algorithm(
-            memory,
-            query_reader,
-            ground_truths,
-            require_ground_truth=require_ground_truth,
-            variant=algorithm,
-        )
-
-    # Clean up memory
-    del memory
-    del query_reader
-    del ground_truths
-
-    return results, hnsw_obj
-
-
 def main(
     dataset_base_path: str,
     algorithm: str = "hnsw",
     require_ground_truth: bool = True,
     use_chunking: bool = False,
+    chunk_size: int = 1000,
 ) -> None:
     """
     Main function to run algorithm performance evaluation.
+    Evaluates performance incrementally at each chunk size.
 
     Args:
         dataset_base_path (str): Path to dataset
         algorithm (str): Algorithm to evaluate (hnsw, mrpt, faiss, finetune-hnsw)
         require_ground_truth (bool): Whether ground truths are required
         use_chunking (bool): Whether to use chunking strategy
+        chunk_size (int): Size of each chunk when chunking is used
     """
     dataset = dataset_base_path.split("/")[-1]
     print(f"Evaluating {algorithm.upper()} algorithm on {dataset} dataset")
 
-    # Handle fine-tuning separately as it doesn't use chunking
+    # Handle fine-tuning separately
     if algorithm == "finetune-hnsw":
         print("Running HNSW parameter fine-tuning")
         memory, query_reader, ground_truths = load_data(dataset_base_path)
@@ -360,47 +296,13 @@ def main(
         print("Fine-tuning completed")
         return
 
-    # Determine chunking strategy
-    if use_chunking:
-        chunk_size = 1000
-        num_chunks = 20
-        print(
-            f"Using chunking strategy: {num_chunks} chunks of {chunk_size} vectors each"
-        )
-
-        hnsw_obj = None
-        for i in range(num_chunks):
-            results, hnsw_obj = process_chunk(
-                algorithm,
-                dataset_base_path,
-                dataset,
-                i,
-                chunk_size,
-                require_ground_truth,
-                hnsw_obj,
-            )
-
-            # Save results
-            output_path = f"./final_output/{algorithm}/{dataset}_{i+1}_performance.csv"
-            write_csv(results, output_path)
-
-            # Print summary
-            avg_accuracy, avg_time = summarize_performance(results)
-            print(
-                f"Chunk {i+1} Summary: Accuracy={avg_accuracy:.2f}%, Time={avg_time:.2f}ms"
-            )
-    else:
-        # Process all data at once
+    # If not using chunking, just evaluate once with all data
+    if not use_chunking:
         print("Processing complete dataset (no chunking)")
-
         memory, query_reader, ground_truths = load_data(dataset_base_path)
-
+        
         if algorithm == "hnsw":
-            hnsw_obj = build_hnsw_index(
-                memory,
-                M=12,
-                ef_construction=250,
-            )
+            hnsw_obj = build_hnsw_index(memory, M=12, ef_construction=250)
             results = evaluate_hnsw_performance(
                 hnsw_obj,
                 query_reader,
@@ -416,22 +318,119 @@ def main(
                 require_ground_truth=require_ground_truth,
                 variant=algorithm,
             )
-
-        # Save results
-        output_path = f"./final_output/{algorithm}/{dataset}_full_performance.csv"
+        
+        output_path = f"{OUTPUT_DIR}/{algorithm}/{dataset}_full_performance.csv"
         write_csv(results, output_path)
-        print(f"Results saved to {output_path}")
-
         avg_accuracy, avg_time = summarize_performance(results)
         print(f"Final Summary: Accuracy={avg_accuracy:.2f}%, Time={avg_time:.2f}ms")
+        return
 
+    # Using chunking - evaluate at each incremental chunk size
+    total_vectors = get_count_of_vectors(dataset_base_path)
+    num_chunks = math.ceil(total_vectors / chunk_size)
+    print(f"Using chunking strategy: {num_chunks} chunks of {chunk_size} vectors each")
+    
+    # Load all queries and ground truths once
+    memory, query_reader, ground_truths = load_data(dataset_base_path, size=None)
+    
+    # Track chunk performance metrics
+    chunk_metrics = {}
+    
+    # For HNSW, build incrementally but evaluate after each chunk
+    if algorithm == "hnsw":
+        hnsw_obj = HNSW(M=12, ef_construction=250)
+        
+        for chunk_idx in range(num_chunks):
+            start_idx = chunk_idx * chunk_size
+            end_idx = min((chunk_idx + 1) * chunk_size, total_vectors)
+            vectors_so_far = end_idx
+            print(f"Processing chunk {chunk_idx+1}/{num_chunks} [{start_idx}:{end_idx}]")
+            
+            # Add new vectors from current chunk to index
+            memory_slice = memory.memory[start_idx:end_idx]
+            for i, embedding in enumerate(memory_slice):
+                global_id = start_idx + i
+                hnsw_obj.insert(embedding["embedding"], metadata={"id": global_id})
+                
+                if i % 5000 == 0 and i > 0:
+                    print(f"  Progress: {i}/{len(memory_slice)} vectors in chunk {chunk_idx+1}")
+            
+            # Evaluate index with current size
+            print(f"Evaluating HNSW index with {vectors_so_far} vectors")
+            results = evaluate_hnsw_performance(
+                hnsw_obj,
+                query_reader,
+                ground_truths,
+                require_ground_truths=require_ground_truth,
+                k=100,
+            )
+            
+            output_path = f"{OUTPUT_DIR}/{algorithm}/{dataset}_{vectors_so_far}_vectors_performance.csv"
+            write_csv(results, output_path)
+            
+            avg_accuracy, avg_time = summarize_performance(results)
+            chunk_metrics[vectors_so_far] = {
+                "vectors": vectors_so_far,
+                "accuracy": avg_accuracy,
+                "query_time": avg_time
+            }
+            print(f"Size {vectors_so_far} vectors: Accuracy={avg_accuracy:.2f}%, Time={avg_time:.2f}ms")
+    
+    else:  # For MRPT or FAISS
+        for chunk_idx in range(num_chunks):
+            end_idx = min((chunk_idx + 1) * chunk_size, total_vectors)
+            vectors_so_far = end_idx
+            print(f"Processing with {vectors_so_far} vectors")
+            
+            # Load data up to this size
+            memory, _, _ = load_data(dataset_base_path, size=end_idx)
+            
+            # Evaluate algorithm at current size
+            results = evaluate_existing_algorithm(
+                memory,
+                query_reader,
+                ground_truths,
+                require_ground_truth=require_ground_truth,
+                variant=algorithm,
+            )
+            
+            # Save results for this size
+            output_path = f"{OUTPUT_DIR}/{algorithm}/{dataset}_{vectors_so_far}_vectors_performance.csv"
+            write_csv(results, output_path)
+            
+            # Calculate and store metrics
+            avg_accuracy, avg_time = summarize_performance(results)
+            chunk_metrics[vectors_so_far] = {
+                "vectors": vectors_so_far,
+                "accuracy": avg_accuracy,
+                "query_time": avg_time
+            }
+            print(f"Size {vectors_so_far} vectors: Accuracy={avg_accuracy:.2f}%, Time={avg_time:.2f}ms")
+            
+            # Clean up memory
+            del memory
+    
+    # Save summary metrics for plotting
+    metrics_output_path = f"{OUTPUT_DIR}/{algorithm}/{dataset}_size_scaling_metrics.csv"
+    with open(metrics_output_path, 'w') as f:
+        f.write("vector_count,accuracy,query_time_ms\n")
+        for size, metrics in sorted(chunk_metrics.items()):
+            f.write(f"{metrics['vectors']},{metrics['accuracy']:.4f},{metrics['query_time']:.4f}\n")
+    
+    print(f"Size scaling metrics saved to {metrics_output_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate vector search algorithms.")
     parser.add_argument(
+        "--plot-only",
+        type=bool,
+        default=False,
+        help="Generate performance comparison plots without evaluation",
+    )
+    parser.add_argument(
         "--dataset_path",
         type=str,
-        required=True,
+        default="./datasets/siftsmall",
         help="Path to the dataset base directory",
     )
     parser.add_argument(
@@ -439,7 +438,7 @@ if __name__ == "__main__":
         type=str,
         choices=["hnsw", "mrpt", "faiss", "finetune-hnsw"],
         default="hnsw",
-        required=True,
+        required=False,
         help="Algorithm to evaluate (hnsw, mrpt, faiss, finetune-hnsw)",
     )
     parser.add_argument(
@@ -449,17 +448,28 @@ if __name__ == "__main__":
         help="Compare ground truth data for evaluation of Recall",
     )
     parser.add_argument(
-        "--use_chunking",
+        "--chunking",
         type=bool,
         default=False,
         help="Use chunking strategy for large datasets",
     )
+    parser.add_argument(
+        "--chunk_size",
+        type=int,
+        default=1000,
+        help="Size of each chunk when chunking is used",
+    )
 
     args = parser.parse_args()
 
-    main(
-        dataset_base_path=args.dataset_path,
-        algorithm=args.algorithm,
-        require_ground_truth=args.ground_truth,
-        use_chunking=args.use_chunking,
-    )
+    if args.plot_only:
+        print("Plotting performance comparison graphs")
+        performance_plotter(OUTPUT_DIR, save_dir=PLOT_DIR)
+    else:
+        main(
+            dataset_base_path=args.dataset_path,
+            algorithm=args.algorithm,
+            require_ground_truth=args.ground_truth,
+            use_chunking=args.chunking,
+            chunk_size=args.chunk_size,
+        )
