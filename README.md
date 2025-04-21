@@ -8,6 +8,7 @@ VectorDB is a lightweight, fully local solution for vector embeddings and simila
 - [Quick Start](#quick-start)
 - [Datasets](#datasets)
 - [HNSW Algorithm Overview](#hnsw-algorithm-overview)
+- [Using HNSW with VectorDB](#using-hnsw-with-vectordb)
 - [Using HNSW Directly](#using-hnsw-directly)
 - [Evaluation and Benchmarking](#evaluation-and-benchmarking)
   - [Running Performance Evaluations](#running-performance-evaluations)
@@ -67,9 +68,39 @@ HNSW (Hierarchical Navigable Small World) is a graph-based algorithm for approxi
 - **Distance Metrics:** Supports cosine and Euclidean distance metrics.
 - **Bidirectional Connections:** Ensures robust graph traversal.
 
+> **Note:** The HNSW implementation has been moved to a separate PyPI package called [hnsw-lite](https://pypi.org/project/hnsw-lite/). You'll need to install this package to use HNSW with vectorDB: `pip install hnsw-lite`.
+
+## Using HNSW with VectorDB
+
+You can use HNSW as the preferred search algorithm in VectorDB by simply specifying `hnsw_preference=True` when initializing a Memory instance:
+
+```python
+from vectordb import Memory
+
+# Create Memory with HNSW as the default search algorithm
+memory = Memory(
+    hnsw_preference=True,
+    hnsw_params={
+        "M": 16,                  # Controls number of connections per node
+        "ef_construction": 200,   # Controls index construction quality
+        "space": "cosine"         # Distance metric (cosine or l2)
+    }
+)
+
+# Add your data
+memory.save([
+    "apples are green",
+    "oranges are orange",
+    "I lost my phone and need help tracking it."
+])
+
+# Search using HNSW - automatically uses the HNSW index
+results = memory.search("help me find something", top_n=3)
+```
+
 ## Using HNSW Directly
 
-To use HNSW for creating and searching an index, follow the example below:
+The hnsw-lite package can also be used directly if you want more control over the index building process:
 
 ```python
 from hnsw import HNSW, Node

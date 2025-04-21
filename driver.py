@@ -1,8 +1,16 @@
 from vectordb import Memory
 from time import time
 
-memory = Memory()
-
+# Create Memory with HNSW as the preferred search algorithm
+memory = Memory(
+    hnsw_preference=True,
+    hnsw_params={
+        "M": 5,
+        "ef_construction": 150,
+        "space": "cosine",
+    }
+)
+   
 memory.save(
     [
         "apples are green",
@@ -24,10 +32,24 @@ query = (
     "help me troubleshoot"
 )
 
+# Using HNSW (default based on hnsw_preference=True)
+# HNSW is expected to be slower in case of very small datasets or very low dimensions
+# but faster in case of larger datasets or higher dimensions
 start_time = time()
 results = memory.search(query, top_n=4, unique=True)
 end_time = time()
-print("Search took {:.4f} ms".format((end_time - start_time) * 1000))
+print("HNSW Search took {:.4f} ms".format((end_time - start_time) * 1000))
 
+print("HNSW Results:")
+for result in results:
+    print(result)
+    
+# Compare with non-HNSW search
+start_time = time()
+results = memory.search(query, top_n=4, unique=True, use_hnsw=False)
+end_time = time()
+print("\nStandard Search took {:.4f} ms".format((end_time - start_time) * 1000))
+
+print("Standard Results:")
 for result in results:
     print(result)
