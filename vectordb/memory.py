@@ -234,7 +234,6 @@ class Memory:
                 print(f"Loaded {len(self.memory)} vectors")
             if number_of_vectors is not None and len(self.memory) >= number_of_vectors:
                 break
-        print(f"Loaded {len(self.memory)} vectors exiting")
 
     def search_vector(self, query_vector: List[float], top_k: int, preference: str = "mrpt") -> List[Dict[str, Any]]:
         """
