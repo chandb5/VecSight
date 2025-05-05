@@ -69,8 +69,6 @@ HNSW (Hierarchical Navigable Small World) is a graph-based algorithm for approxi
 - **Distance Metrics:** Supports cosine and Euclidean distance metrics.
 - **Bidirectional Connections:** Ensures robust graph traversal.
 
-> **Note:** The HNSW implementation has been moved to a separate PyPI package called [hnsw-lite](https://pypi.org/project/hnsw-lite/). You'll need to install this package to use HNSW with vectorDB: `pip install hnsw-lite`.
-
 ## Using HNSW with VectorDB
 
 You can use HNSW as the preferred search algorithm in VectorDB by simply specifying `hnsw_preference=True` when initializing a Memory instance:
