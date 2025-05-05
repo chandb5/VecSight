@@ -1,4 +1,5 @@
 # VectorDB with HNSW
+> **Note:** The HNSW implementation has been moved to a separate PyPI package called [hnsw-lite](https://pypi.org/project/hnsw-lite/). You'll need to install this package to use HNSW with vectorDB: `pip install hnsw-lite`.
 
 VectorDB is a lightweight, fully local solution for vector embeddings and similarity search. This implementation extends the original [VectorDB](https://github.com/kagisearch/vectordb) with a focus on **HNSW** (Hierarchical Navigable Small World) — an efficient algorithm for approximate nearest neighbor search.
 
